@@ -1,0 +1,246 @@
+REM Project: Adventure
+REM Created: 9/10/2006 6:21:30 PM
+REM
+REM ***** Main Source File *****
+REM
+global sky_image as integer
+global sky_object as integer
+global lava_image as integer
+global lava_matrix as integer
+global lava_size as integer
+global lava_memblock as integer
+global lava_memblock_size as integer
+global sponge_object as integer
+global sponge_size as float
+global sponge_can_absorb as boolean
+global ice_object as integer
+global ice_momentum as float
+global ice_size as float
+global water_image as integer
+global water_memblock as integer
+global misty_room_music as integer
+global tv_object as integer
+global tv_image as integer
+global tv_camera as byte
+global fire_image as integer
+global particles as float
+
+setup()
+load_sky()
+load_lava()
+load_sponge()
+load_ice()
+load_tv()
+load_misty_room()
+load_particles()
+do
+  update_ice()
+  update_lava()
+  update_sponge()
+  update_tv()
+  update_particles()
+  fly_camera()
+  position_sky()
+  text 0, 0, str$(screen fps())
+  sync
+loop
+end
+
+function update_particles()
+  inc particles, .01
+  position particle emissions 1, 0, 2, particles
+endfunction
+
+function load_particles()
+  fire_image = free_image()
+  load image "fire.bmp", fire_image
+  make particles 1, fire_image, 10, 5
+  set particle emissions 1, 50
+endfunction
+function update_tv()
+   position camera tv_camera, camera position x(), camera position y(), camera position z()
+   rotate camera tv_camera, camera angle x(), camera angle y(), camera angle z()
+   texture object tv_object, tv_image
+endfunction
+function load_tv()
+   tv_object = free_object()
+   make object plain tv_object, 10, 10
+   tv_image = free_image()
+   get image tv_image, 0, 0, 1, 1
+   texture object tv_object, tv_image
+   tv_camera = 1
+   make camera tv_camera
+   set current camera 0
+   set camera to image tv_camera, tv_image, 256, 256
+   set object cull tv_object, 1
+endfunction
+function load_misty_room()
+   misty_room_music = free_music()
+   load music "misty room.mp3", misty_room_music
+   loop music misty_room_music
+endfunction
+function update_ice()
+  if ice_object = 0 then exitfunction
+  if abs(object position y(ice_object) - get ground height(lava_matrix, object position x(ice_object), object position z(ice_object))) < 1 or object position y(ice_object) < get ground height(lava_matrix, object position x(ice_object), object position z(ice_object))
+    dec ice_size, .005
+    scale object ice_object, 100 * ice_size, 100 * ice_size, 100 * ice_size
+    cool_lava()
+    if ice_size <= 0
+      delete object ice_object
+      prepare matrix texture lava_matrix, water_image, 1, 1
+      update matrix lava_matrix
+      delete image lava_image
+      ice_object = 0
+      ice_size = 0
+      lava_image = 0
+      sponge_can_absorb = 1
+      exitfunction
+    endif
+  endif
+  if object position y(ice_object) > get ground height(lava_matrix, object position x(ice_object), object position z(ice_object))
+    inc ice_momentum, .005
+  else
+    if ice_momentum > 0 then dec ice_momentum, .03
+    dec ice_momentum, .003
+  endif
+  move object down ice_object, ice_momentum
+endfunction
+function load_ice()
+  ice_object = free_object()
+  make object cube ice_object, 10
+  ghost object on ice_object
+  position object ice_object, 25, 40, 25
+  ice_size = 1
+endfunction
+function fly_camera()
+  if mouseclick() && %1 then move camera .5
+  if mouseclick() && %10 then move camera -.5
+  xrotate camera camera angle x() + mousemovey() / 10
+  yrotate camera camera angle y() + mousemovex() / 10
+  if camera angle x() > 90
+    xrotate camera 90
+  else
+    if camera angle x() < -90
+      xrotate camera -90
+    endif
+  endif
+endfunction
+function setup()
+  set display mode screen width(), screen height(), screen depth()
+  sync on
+  sync rate 0
+  sync sleep 1
+  hide mouse
+  backdrop off
+  autocam off
+  position camera 5, 5, 5
+  yrotate camera 45
+endfunction
+function update_lava()
+  local x as integer
+  local z as integer
+  for x = 0 to lava_size
+    for z = 0 to lava_size
+      set matrix height lava_matrix, x, z, sin(timer() / 1 + x * 400)
+    next z
+  next x
+  update matrix lava_matrix
+endfunction
+function cool_lava()
+   local water as byte
+   local lava as byte
+   local count as integer
+   for count = 12 to lava_memblock_size
+      lava = memblock byte(lava_memblock, count)
+      water = memblock byte(water_memblock, count)
+      if lava > water
+         dec lava
+      else
+         if lava < water
+            inc lava
+         endif
+      endif
+      write memblock byte lava_memblock, count, lava
+   next count
+   make image from memblock lava_image, lava_memblock
+endfunction
+function load_lava()
+  lava_image = free_image()
+  load image "lava.bmp", lava_image, 1
+  lava_memblock = free_memblock()
+  make memblock from image lava_memblock, lava_image
+  lava_memblock_size = get memblock size(lava_memblock) - 1
+  water_image = free_image()
+  load image "water.bmp", water_image, 1
+  water_memblock = free_memblock()
+  make memblock from image water_memblock, water_image
+  lava_matrix = free_matrix()
+  lava_size = 30
+  make matrix lava_matrix, 50, 50, lava_size, lava_size
+  prepare matrix texture lava_matrix, lava_image, 1, 1
+  update matrix lava_matrix
+endfunction
+function load_sky()
+  sky_image = free_image()
+  load image "highland rain.jpg", sky_image
+  sky_object = free_object()
+  make object sphere sky_object, 500
+  set object cull sky_object, 0
+  texture object sky_object, sky_image
+endfunction
+function load_sponge()
+  sponge_object = free_object()
+  make object cube sponge_object, .5
+  yrotate object sponge_object, 45
+  sponge_image = free_image()
+  load image "sponge.bmp", sponge_image
+  texture object sponge_object, sponge_image
+  sponge_size = 50
+  engorge_sponge()
+endfunction
+function engorge_sponge()
+   if sponge_size > 1000
+      sponge_can_absorb = 0
+      exitfunction
+   endif
+   inc sponge_size, 100
+   scale object sponge_object, sponge_size, sponge_size, sponge_size
+endfunction
+function update_sponge()
+  move object sponge_object, .02
+  position object sponge_object, object position x(sponge_object), get ground height(lava_matrix, object position x(sponge_object), object position z(sponge_object)),object position z(sponge_object)
+  if sponge_can_absorb = 1 then engorge_sponge()
+  endfunction
+function position_sky()
+  position object sky_object, camera position x(), camera position y(), camera position z()
+endfunction
+function free_object()
+  local id as integer
+  repeat
+    inc id
+  until object exist(id) = 0
+endfunction id
+function free_image()
+  local id as integer
+  repeat
+    inc id
+  until image exist(id) = 0
+endfunction id
+function free_matrix()
+  local id as integer
+  repeat
+    inc id
+  until matrix exist(id) = 0
+endfunction id
+function free_memblock()
+  local id as integer
+  repeat
+    inc id
+  until memblock exist(id) = 0
+endfunction id
+function free_music()
+  local id as integer
+  repeat
+    inc id
+  until music exist(id) = 0
+endfunction id
